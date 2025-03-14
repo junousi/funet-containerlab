@@ -2,12 +2,12 @@
 
 ## About
 
-Run [Funet](https://web.archive.org/web/20250114090246/https://netmap.funet.fi/) core in a lab. Build (and break) the RSVP-TE paths you never dared before. Live the dream!
+Run [Funet](https://web.archive.org/web/20250114090246/https://netmap.funet.fi/) core in a lab.
 
 ## Howto
 
 ```
 # Install networkx with mechanism of your choice
-curl https://netmap.funet.fi/ -o topofile.html
-python3 funet-containerlab.py topofile.html
+curl https://netmap.funet.fi/ -o netmap.html
+python3 funet-containerlab.py netmap.html
 ```

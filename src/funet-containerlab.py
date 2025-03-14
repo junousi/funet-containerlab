@@ -61,7 +61,7 @@ def parse_netmap_topo(topofile):
                     g.add_edge(src, dst, interface=interface)
     return g
 
-def output_yaml(hd_graph, fd_graph):
+def output_yaml(hd_graph, fd_graph, image, kind):
     """
     Output a containerlab-compatible topology to stdout.
     """
@@ -72,12 +72,15 @@ mgmt:
   ipv4-subnet: 192.168.42.0/24
 topology:''')
     print('  nodes:')
-    for index,n in enumerate(hd_graph.nodes):
+    for index, n in enumerate(hd_graph.nodes):
         print('''    {router}:
-      kind: juniper_vjunosrouter
-      image: vrnetlab/juniper_vjunos-router:23.2R1.15
+      kind: {kind}
+      image: {image}
       mgmt-ipv4: 192.168.42.{index}
-      startup-config: {router}.cfg'''.format(router=n, index=index+100))
+      startup-config: {router}.cfg'''.format(router=n,
+                                             kind=kind,
+                                             image=image,
+                                             index=index+100))
     print('  links:')
     # The source HTML does not contain full-duplex interface data, thus we
     # need to work with two graphs; one that holds the half-duplex links wanted
@@ -100,10 +103,15 @@ if __name__ == '__main__':
 #TODO
 #    parser.add_option('-o', '--output', dest='output',
 #                      help='Output file, if omitted stdout')
-#TODO Proper src/ structure might be nice as well.
+    parser.add_option('-k', '--kind',
+                      default='juniper_vjunosrouter',
+                      help='Node type to use with containerlab.')
+    parser.add_option('-i', '--image',
+                      default='vrnetlab/juniper_vjunos-router:23.2R1.15',
+                      help='Image to use with containerlab.')
     (options, args) = parser.parse_args()
     if len(args) == 0:
         parser.print_help()
         sys.exit(1)
     fd_graph = parse_netmap_topo(args[0])
-    output_yaml(fd_graph.to_undirected(), fd_graph)
+    output_yaml(fd_graph.to_undirected(), fd_graph, options.image, options.kind)
