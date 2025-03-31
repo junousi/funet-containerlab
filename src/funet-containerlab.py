@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
-import sys
+import sys, re, csv
 import networkx as nx
-import re
 from operator import itemgetter
 from optparse import OptionParser
+from geopy.distance import geodesic
 
 def join_digits(string):
     """
@@ -43,11 +43,11 @@ def parse_netmap_topo(topofile):
                 pass
             elif line.startswith('<!--'):
                 # Don't include IX/etc for now.
-                m1 = re.match(r"<!-- ([a-z0-9]+.ip.funet.fi)", line)
+                m1 = re.match(r"<!-- ([a-z0-9]+).ip.funet.fi", line)
                 if m1 != None:
                     src = m1.group(1)
                     g.add_node(src)
-                m2 = re.match(r".* ([a-z0-9]+.ip.funet.fi) -->", line)
+                m2 = re.match(r".* ([a-z0-9]+).ip.funet.fi -->", line)
                 if m2 != None:
                     dst = m2.group(1)
                     g.add_node(dst)
@@ -61,33 +61,33 @@ def parse_netmap_topo(topofile):
                     g.add_edge(src, dst, interface=interface)
     return g
 
-def output_yaml(hd_graph, fd_graph, image, kind):
+def output_yaml(hd_graph, fd_graph, image, kind, out):
     """
     Output a containerlab-compatible topology to stdout.
     """
-    print('''---
+    out.write('''---
 name: funet-containerlab
 mgmt:
   bridge: virbr0
   ipv4-subnet: 192.168.42.0/24
-topology:''')
-    print('  nodes:')
+topology:\n''')
+    out.write('  nodes:\n')
     for index, n in enumerate(hd_graph.nodes):
-        print('''    {router}:
+        out.write('''    {router}:
       kind: {kind}
       image: {image}
       mgmt-ipv4: 192.168.42.{index}
-      startup-config: {router}.cfg'''.format(router=n,
-                                             kind=kind,
-                                             image=image,
-                                             index=index+100))
-    print('  links:')
+      startup-config: {router}.cfg\n'''.format(router=n,
+                                               kind=kind,
+                                               image=image,
+                                               index=index+100))
+    out.write('  links:\n')
     # The source HTML does not contain full-duplex interface data, thus we
     # need to work with two graphs; one that holds the half-duplex links wanted
     # by containerlab topology parser, and the other which has awareness of the
     # specific router interface for B in the case of A->B.
-    for src, dst, dummyif in hd_graph.edges.data():
-        print('    - endpoints: ["{rtr1}:{if1}", "{rtr2}:{if2}"]'.format( \
+    for src, dst, dummyattr in hd_graph.edges.data():
+        out.write('    - endpoints: ["{rtr1}:{if1}", "{rtr2}:{if2}"]\n'.format(
             rtr1 = src,
             if1  = 'et-0/0/' + str(get_if_index(src,
                                                 fd_graph[src][dst]['interface'],
@@ -97,21 +97,73 @@ topology:''')
                                                 fd_graph[dst][src]['interface'],
                                                 fd_graph))))
 
+# Initial geographical latency implementation with halfduplex graph;
+# something more reasonable could be fullduplex graph with both endpoints'
+# delay set to geo_delay/2. TODO
+# Also the excludelist should be extended to the topology parser.
+def output_netem_commands(hd_graph, out):
+
+    reader = csv.reader(open('./coordinates.csv', 'r'))
+    locations = {}
+    for row in reader:
+        location, n, e = row
+        locations[location] = [n, e]
+
+    excludelist = ['Stockholm', 'Kalix', 'Sundsvall']
+
+    for src, dst, attributes in hd_graph.edges.data():
+
+        owd = 0
+
+        # Reformat to match source data
+        node1_loc = ''.join([i for i in src if not i.isdigit()]).capitalize()
+        node2_loc = ''.join([i for i in dst if not i.isdigit()]).capitalize()
+
+        if node1_loc in excludelist or node2_loc in excludelist:
+            continue
+        if node1_loc == node2_loc:
+            # Arbitrary nonzero µs delay for back-to-back routers case
+            owd = 100
+        else:
+            # Includes:
+            # - Approx. speed of light in fiber 200 m/µs
+            # - Path adjustment +10%
+            # - Equipment latency (~1ms might be slightly naive but gives decent correlation)
+            # For further consideration:
+            # - Local loop lengths (or just factor more into path adjustment?)
+            owd = round(geodesic(locations[node1_loc], locations[node2_loc]).meters * 1.1
+                        / 200
+                        + 1000)
+        out.write('containerlab tools netem set -n {node} -i {iface} --delay {delay}\n'.format(
+            node = src,
+            iface = attributes['interface'],
+            delay = str(owd) + "us"))
+
 if __name__ == '__main__':
-    usage = """%prog [options] topofile.html"""
+    usage = """%prog -o output.yml [options] input.html"""
     parser = OptionParser(usage)
-#TODO
-#    parser.add_option('-o', '--output', dest='output',
-#                      help='Output file, if omitted stdout')
+    parser.add_option('-o', '--output', dest='output',
+                      help='output filename')
     parser.add_option('-k', '--kind',
                       default='juniper_vjunosrouter',
-                      help='Node type to use with containerlab.')
+                      help='node type to use with containerlab e.g. juniper_vjunosrouter')
     parser.add_option('-i', '--image',
                       default='vrnetlab/juniper_vjunos-router:23.2R1.15',
-                      help='Image to use with containerlab.')
+                      help='image to use with containerlab')
+    parser.add_option('-d', '--delay',
+                      action='store_true',
+                      help='provide geographical latencies to links')
     (options, args) = parser.parse_args()
     if len(args) == 0:
         parser.print_help()
         sys.exit(1)
+    if not options.output:
+        parser.error('Output filename not given')
+    output = open(options.output, 'w')
     fd_graph = parse_netmap_topo(args[0])
-    output_yaml(fd_graph.to_undirected(), fd_graph, options.image, options.kind)
+    output_yaml(fd_graph.to_undirected(), fd_graph, options.image, options.kind, output)
+    print('Containerlab topology generated into {file}.'.format(file=options.output))
+    if options.delay:
+        cmd_output = open('netemcmd.txt', 'w')
+        output_netem_commands(fd_graph.to_undirected(), cmd_output)
+        print('Additional commands for netem delay adjustments generated into netemcmd.txt')
