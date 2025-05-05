@@ -99,7 +99,7 @@ topology:\n''')
 # something more reasonable could be fullduplex graph with both endpoints'
 # delay set to geo_delay/2. TODO
 # Also the excludelist should be extended to the topology parser.
-def output_netem_commands(hd_graph, out):
+def output_netem_commands(hd_graph, fd_graph, out):
 
     reader = csv.reader(open('./coordinates.csv', 'r'))
     locations = {}
@@ -134,7 +134,9 @@ def output_netem_commands(hd_graph, out):
                         + 1000)
         out.write('containerlab tools netem set -n {node} -i {iface} --delay {delay}\n'.format(
             node = src,
-            iface = attributes['interface'],
+            iface = 'et-0/0/' + str(get_if_index(src,
+                                                 fd_graph[src][dst]['interface'],
+                                                 fd_graph)),
             delay = str(owd) + "us"))
 
 if __name__ == '__main__':
@@ -163,5 +165,5 @@ if __name__ == '__main__':
     print('Containerlab topology generated into {file}.'.format(file=options.output))
     if options.delay:
         cmd_output = open('netemcmd.txt', 'w')
-        output_netem_commands(fd_graph.to_undirected(), cmd_output)
+        output_netem_commands(fd_graph.to_undirected(), fd_graph, cmd_output)
         print('Additional commands for netem delay adjustments generated into netemcmd.txt')
