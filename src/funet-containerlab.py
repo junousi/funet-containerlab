@@ -71,16 +71,14 @@ mgmt:
   bridge: virbr0
   ipv4-subnet: 192.168.42.0/24
 topology:\n''')
+    out.write('''  defaults:
+    kind: {kind}
+    image: {image}
+    startup-config: __clabNodeName__.cfg\n'''.format(kind=kind, image=image))
     out.write('  nodes:\n')
     for index, n in enumerate(hd_graph.nodes):
         out.write('''    {router}:
-      kind: {kind}
-      image: {image}
-      mgmt-ipv4: 192.168.42.{index}
-      startup-config: {router}.cfg\n'''.format(router=n,
-                                               kind=kind,
-                                               image=image,
-                                               index=index+100))
+      mgmt-ipv4: 192.168.42.{index}\n'''.format(router=n, index=index+100))
     out.write('  links:\n')
     # The source HTML does not contain full-duplex interface data, thus we
     # need to work with two graphs; one that holds the half-duplex links wanted
@@ -148,7 +146,7 @@ if __name__ == '__main__':
                       default='juniper_vjunosrouter',
                       help='node type to use with containerlab e.g. juniper_vjunosrouter')
     parser.add_option('-i', '--image',
-                      default='vrnetlab/juniper_vjunos-router:23.2R1.15',
+                      default='vrnetlab/juniper_vjunos-router:24.2R1-S2.5',
                       help='image to use with containerlab')
     parser.add_option('-d', '--delay',
                       action='store_true',
