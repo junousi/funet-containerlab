@@ -9,7 +9,7 @@ Run 2020 era [Funet core](https://web.archive.org/web/20250114090246/https://net
 ```
 # Install networkx, geopy etc. with mechanism of your choice
 cd src
-curl https://web.archive.org/web/20250114090246/https://netmap.funet.fi/ -o input.html
+curl https://web.archive.org/web/20250114090246/https://netmap.funet.fi/ -o netmap.html
 bash coordinates-helper.sh
-python3 funet-containerlab.py -d -o output.clab.yml input.html
+python3 funet-containerlab.py netmap.html output.clab.yml
 ```

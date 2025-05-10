@@ -140,10 +140,8 @@ def output_netem_commands(hd_graph, fd_graph, out):
             delay = str(owd) + "us"))
 
 if __name__ == '__main__':
-    usage = """%prog -o output.yml [options] input.html"""
+    usage = """%prog [options] INPUT OUTPUT"""
     parser = OptionParser(usage)
-    parser.add_option('-o', '--output', dest='output',
-                      help='output filename')
     parser.add_option('-k', '--kind',
                       default='juniper_vjunosrouter',
                       help='node type to use with containerlab e.g. juniper_vjunosrouter')
@@ -152,18 +150,23 @@ if __name__ == '__main__':
                       help='image to use with containerlab')
     parser.add_option('-d', '--delay',
                       action='store_true',
+                      default=False,
                       help='provide geographical latencies to links')
     (options, args) = parser.parse_args()
-    if len(args) == 0:
+    if len(args) != 2:
         parser.print_help()
         sys.exit(1)
-    if not options.output:
+    inputfile = args[0]
+    outputfile = args[1]
+
+    fd_graph = parse_netmap_topo(inputfile)
+    if not outputfile:
         parser.error('Output filename not given')
-    output = open(options.output, 'w')
-    fd_graph = parse_netmap_topo(args[0])
+    output = open(outputfile, 'w')
     output_yaml(fd_graph.to_undirected(), fd_graph, options.image, options.kind, output)
-    print('Containerlab topology generated into {file}.'.format(file=options.output))
+    print('Containerlab topology generated into {file}.'.format(file=outputfile))
+
     if options.delay:
-        cmd_output = open('netemcmd.txt', 'w')
+        cmd_output = open('delaycmd.txt', 'w')
         output_netem_commands(fd_graph.to_undirected(), fd_graph, cmd_output)
-        print('Additional commands for netem delay adjustments generated into netemcmd.txt')
+        print('Additional commands for netem delay adjustments generated into delaycmd.txt')
