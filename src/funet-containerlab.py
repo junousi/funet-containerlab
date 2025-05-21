@@ -77,8 +77,7 @@ topology:\n''')
     startup-config: __clabNodeName__.cfg\n'''.format(kind=kind, image=image))
     out.write('  nodes:\n')
     for index, n in enumerate(hd_graph.nodes):
-        out.write('''    {router}:
-      mgmt-ipv4: 192.168.42.{index}\n'''.format(router=n, index=index+100))
+        out.write('''    {router}:\n'''.format(router=n))
     out.write('  links:\n')
     # The source HTML does not contain full-duplex interface data, thus we
     # need to work with two graphs; one that holds the half-duplex links wanted
